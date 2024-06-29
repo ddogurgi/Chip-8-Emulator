@@ -23,6 +23,10 @@ void Chip8::Initialize(){
     };
     for(int i = 0x50; i <= 0x9F; i++)
         this->memory[i] = font[i-0x50]; //font 050 to 09F by convention (it is fine to put it at 000-1FF)
+    if (!beepbuffer.loadFromFile("sound/beep.wav")) {
+        throw std::runtime_error("Can not open sound file");
+    }
+    beepsound.setBuffer(beepbuffer);
 }
 
 void Chip8::LoadProgram(const std::string& filename){
@@ -51,7 +55,8 @@ void Chip8::EmulateCycle(){
         case 0x0000:
             switch(inst & 0x00FF){
                 case 0x00E0: // clear the screen
-                    display.fill(0); 
+                    display.fill(0);
+                    drawflag = true;
                     break; 
                 case 0x00EE: // returning from function
                     pc = stack.top();
@@ -158,6 +163,7 @@ void Chip8::EmulateCycle(){
                     }
                 }
             }
+            drawflag = true;
         }
             break;
         case 0xE000:
@@ -229,10 +235,13 @@ void Chip8::EmulateCycle(){
     if(delay_timer > 0)
         delay_timer--;
     if(sound_timer > 0){
+        /*
         if(sound_timer == 1){
-
+            //beepsound.play();
         }
-            
+        */
+        printf("\a\n");
+        //fflush(stdout);
         sound_timer--;
     }
 }

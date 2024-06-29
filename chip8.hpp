@@ -2,7 +2,7 @@
 #include <array>
 #include <stack>
 #include <SFML/Graphics.hpp>
-
+#include <SFML/Audio.hpp>
 
 class Chip8 {
     public:
@@ -11,7 +11,7 @@ class Chip8 {
         void EmulateCycle();
         void DrawGraphics(sf::RenderWindow &window);
         void SetKeys(sf::Event &event);
-
+        bool drawflag;
     private:
         std::array<uint8_t, 4096> memory{};//4KB direct-access Memory 
         std::array<bool, 64*32> display{}; //64x32 monochrome pixels of display
@@ -24,4 +24,8 @@ class Chip8 {
 
         std::array<uint8_t, 16> V{}; //16 8-bit general-purpose registers
         std::array<bool, 16> keys{}; //The array indicates that keys are pressed or not
+        
+        sf::SoundBuffer beepbuffer;
+        sf::Sound beepsound;
+        
 };

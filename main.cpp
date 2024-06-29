@@ -13,11 +13,18 @@ int main(int argc, char** argv){
         while(window.pollEvent(event)){
             if(event.type == sf::Event::Closed)
                 window.close();
+            if(event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape)
+                window.close();
             chip8.SetKeys(event);
         }
         chip8.EmulateCycle();
-        chip8.DrawGraphics(window);
-        //sf::sleep(sf::milliseconds(0));
+        if (chip8.drawflag) {
+            window.clear();
+            chip8.DrawGraphics(window);
+            window.display();
+            chip8.drawflag = false;
+        }
+        sf::sleep(sf::microseconds(500));
        
     }
 }
