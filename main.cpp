@@ -13,9 +13,11 @@ int main(int argc, char** argv){
         while(window.pollEvent(event)){
             if(event.type == sf::Event::Closed)
                 window.close();
+            chip8.SetKeys(event);
         }
         chip8.EmulateCycle();
         chip8.DrawGraphics(window);
-        sf::sleep(sf::milliseconds(16));
+        //sf::sleep(sf::milliseconds(0));
+       
     }
 }

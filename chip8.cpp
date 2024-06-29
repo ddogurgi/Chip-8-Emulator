@@ -1,7 +1,7 @@
 #include <chip8.hpp>
 #include <vector>
 #include <fstream>
-
+#include <random>
 void Chip8::Initialize(){
     uint8_t const font[0x50] {
         0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -45,8 +45,8 @@ void Chip8::LoadProgram(const std::string& filename){
 
 void Chip8::EmulateCycle(){
     //fetch
-    uint16_t inst = (this->memory[this->pc] << 8) | memory[this->pc+1];
-    this->pc += 2;
+    uint16_t inst = (memory[pc] << 8) | memory[pc+1];
+    pc += 2;
     switch(inst & 0xF000){
         case 0x0000:
             switch(inst & 0x00FF){
@@ -54,23 +54,29 @@ void Chip8::EmulateCycle(){
                     display.fill(0); 
                     break; 
                 case 0x00EE: // returning from function
-                    this->pc = this->stack.top();
-                    this->stack.pop();
+                    pc = stack.top();
+                    stack.pop();
                     break; 
             }
             break; 
         case 0x1000: // PC jump
-            this->pc = (inst & 0x0FFF); 
+            pc = (inst & 0x0FFF); 
             break;
         case 0x2000: // function call
-            this->stack.push(this->pc);
-            this->pc = (inst & 0x0FFF); 
+            stack.push(pc);
+            pc = (inst & 0x0FFF); 
             break;
         case 0x3000:
+            if(V[(inst & 0x0F00) >> 8] == (inst & 0x00FF))
+                pc += 2;
             break;
         case 0x4000:
+            if(V[(inst & 0x0F00) >> 8] != (inst & 0x00FF))
+                pc += 2;
             break;
         case 0x5000:
+            if(V[(inst & 0x0F00) >> 8] == V[(inst & 0x00F0) >> 4])
+                pc += 2;
             break;
         case 0x6000: //SET V[X] = 00NN
             V[(inst & 0x0F00) >> 8] = (inst & 0x00FF); 
@@ -79,17 +85,63 @@ void Chip8::EmulateCycle(){
             V[(inst & 0x0F00) >> 8] += (inst & 0x00FF); 
             break;
         case 0x8000:
+            switch(inst & 0x000F){
+                case 0x0:
+                    V[(inst & 0x0F00) >> 8] = V[(inst & 0x00F0) >> 4];
+                    break;
+                case 0x1:
+                    V[(inst & 0x0F00) >> 8] |= V[(inst & 0x00F0) >> 4];
+                    break;
+                case 0x2:
+                    V[(inst & 0x0F00) >> 8] &= V[(inst & 0x00F0) >> 4];
+                    break;
+                case 0x3:
+                    V[(inst & 0x0F00) >> 8] ^= V[(inst & 0x00F0) >> 4];
+                    break;
+                case 0x4:
+                    V[0xF] = (V[(inst & 0x00F0) >> 4] > (0xFF - V[(inst & 0x0F00) >> 8])) ? 1 : 0;
+                    V[(inst & 0x0F00) >> 8] += V[(inst & 0x00F0) >> 4];
+                    break;
+                case 0x5:
+                    V[0xF] = (V[(inst & 0x00F0) >> 4] > V[(inst & 0x0F00) >> 8]) ? 1 : 0;
+                    V[(inst & 0x0F00) >> 8] -= V[(inst & 0x00F0) >> 4];
+                    break;
+                case 0x6:
+                    V[(inst & 0x0F00) >> 8] = V[(inst & 0x00F0) >> 4];
+                    if(V[(inst & 0x0F00) >> 8] & 0x1)
+                        V[0xF] = 1;
+                    V[(inst & 0x0F00) >> 8] >>= 1;
+                    break;
+                case 0x7:
+                    V[(inst & 0x0F00) >> 8] = V[(inst & 0x00F0) >> 4] - V[(inst & 0x0F00) >> 8];
+                    break;
+                case 0xE:
+                    V[(inst & 0x0F00) >> 8] = V[(inst & 0x00F0) >> 4];
+                    if(V[(inst & 0x0F00) >> 8] & 0x8)
+                        V[0xF] = 1;
+                    V[(inst & 0x0F00) >> 8] <<= 1;
+                    break;
+            }
             break;
         case 0x9000:
+            if(V[(inst & 0x0F00) >> 8] != V[(inst & 0x00F0) >> 4])
+                pc += 2;
             break;
         case 0xA000: // SET I = 0NNN
             I = inst & 0x0FFF;
             break;
         case 0xB000:
+            pc = (inst & 0x0FFF) + V[0x0];
             break;
-        case 0xC000:
+        case 0xC000:{
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<> distrib(0, 0xFF);
+            uint8_t rand_num = distrib(gen);
+            V[(inst & 0x0F00) >> 8] = rand_num & (inst & 0x00FF);
             break;
-        case 0xD000:
+        }
+        case 0xD000:{
             uint8_t X = V[(inst & 0x0F00) >> 8] & 0x003F;
             uint8_t Y = V[(inst & 0x00F0) >> 4] & 0x001F;
             V[0x000F] = 0;
@@ -106,14 +158,83 @@ void Chip8::EmulateCycle(){
                     }
                 }
             }
+        }
             break;
-        /*
         case 0xE000:
+            switch(inst & 0x00FF){
+                case 0x9E:
+                    if(keys[V[(inst & 0x0F00) >> 8]])
+                        pc += 2;
+                    break;
+                case 0XA1:
+                    if(!keys[V[(inst & 0x0F00) >> 8]])
+                        pc += 2;
+                    break;
+            }
             break;
         case 0xF000:
+            switch(inst & 0x00FF){
+                case 0x07:
+                    V[(inst & 0x0F00) >> 8] = delay_timer;                    
+                    break;
+                case 0x0A:{
+                    bool keypressed = false;
+                    for(uint8_t i = 0; i <= 0xF; i++)
+                        if(keys[i]){
+                            keypressed = true;
+                            V[(inst & 0x0F00) >> 8] = i; 
+                        }
+                    if(!keypressed)
+                        pc -= 2;
+                    break;
+                }
+                case 0x15:
+                    delay_timer = V[(inst & 0x0F00) >> 8];
+                    break;
+                case 0x18:
+                    sound_timer = V[(inst & 0x0F00) >> 8];
+                    break;
+                case 0x1E:{
+                    I += V[(inst & 0x0F00) >> 8];
+                    if(I & 0xF000) V[0xF] = 1;
+                    break;
+                }
+                case 0x29:
+                    I = V[(inst & 0x0F00) >> 8]*5 + 0x50;
+                    break;
+                case 0x33:{
+                    uint8_t vx = V[(inst & 0x0F00) >> 8];
+                    memory[I+2] = vx % 10; vx /= 10;
+                    memory[I+1] = vx % 10; vx /= 10;
+                    memory[I] = vx;
+                    break;
+                }
+                case 0x55:
+                    for(uint8_t i = 0; i <= ((inst & 0x0F00) >> 8); i++){
+                        memory[i + I] = V[i];
+                    }
+                    I += ((inst & 0x0F00) >> 8) + 1;
+                    break;
+                case 0x65:
+                    for(uint8_t i = 0; i <= ((inst & 0x0F00) >> 8); i++){
+                        V[i] = memory[i + I] ;
+                    }
+                    I += ((inst & 0x0F00) >> 8) + 1;
+                    break;
+            }
             break;
-        */
-    }    
+        default:
+            throw std::runtime_error("Invalid instruction");
+    }
+    if(delay_timer > 0)
+        delay_timer--;
+    if(sound_timer > 0){
+        if(sound_timer == 1){
+
+        }
+            
+        sound_timer--;
+    }
 }
 
 void Chip8::DrawGraphics(sf::RenderWindow &window){
@@ -133,5 +254,59 @@ void Chip8::DrawGraphics(sf::RenderWindow &window){
 }
 
 void Chip8::SetKeys(sf::Event &event){
-    
+    if(event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased){
+        bool key_pressed = (event.type == sf::Event::KeyPressed);
+        switch(event.key.code){
+            case sf::Keyboard::Num1:
+                keys[0x1] = key_pressed;
+                break;
+            case sf::Keyboard::Num2:
+                keys[0x2] = key_pressed;
+                break;
+            case sf::Keyboard::Num3:
+                keys[0x3] = key_pressed;
+                break;
+            case sf::Keyboard::Num4:
+                keys[0xC] = key_pressed;
+                break;
+            case sf::Keyboard::Q:
+                keys[0x4] = key_pressed;
+                break;
+            case sf::Keyboard::W:
+                keys[0x5] = key_pressed;
+                break;
+            case sf::Keyboard::E:
+                keys[0x6] = key_pressed;
+                break;
+            case sf::Keyboard::R:
+                keys[0xD] = key_pressed;
+                break;
+            case sf::Keyboard::A:
+                keys[0x7] = key_pressed;
+                break;
+            case sf::Keyboard::S:
+                keys[0x8] = key_pressed;
+                break;
+            case sf::Keyboard::D:
+                keys[0x9] = key_pressed;
+                break;
+            case sf::Keyboard::F:
+                keys[0xE] = key_pressed;
+                break;
+            case sf::Keyboard::Z:
+                keys[0xA] = key_pressed;
+                break;
+            case sf::Keyboard::X:
+                keys[0x0] = key_pressed;
+                break;
+            case sf::Keyboard::C:
+                keys[0xB] = key_pressed;
+                break;
+            case sf::Keyboard::V:
+                keys[0xF] = key_pressed;
+                break;
+            default:
+                break;
+        }
+    }
 }

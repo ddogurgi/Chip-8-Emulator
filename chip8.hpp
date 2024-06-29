@@ -23,5 +23,5 @@ class Chip8 {
         uint8_t sound_timer; //8-bit sound timer
 
         std::array<uint8_t, 16> V{}; //16 8-bit general-purpose registers
-        
+        std::array<bool, 16> keys{}; //The array indicates that keys are pressed or not
 };
